@@ -3,9 +3,10 @@ import FundoVideo from "./components/FundoVideo.jsx";
 import TelaInicio from "./components/TelaInicio.jsx";
 import TelaQuiz from "./components/TelaQuiz.jsx";
 import TelaResultado from "./components/TelaResultado.jsx";
-import { PERGUNTAS } from "./data/perguntas.js";
 import TelaFormulario from "./components/TelaFormulario.jsx";
 import TelaRanking from "./components/TelaRanking.jsx";
+import TelaGerenciarPerguntas from "./components/TelaGerenciarPerguntas.jsx";
+import { buscarPerguntas } from "./data/perguntasApi.js";
 
 export const TOTAL = 5;
 
@@ -19,8 +20,8 @@ function embaralhar(lista) {
 }
 
 // embaralha perguntas e a ordem das alternativas de cada uma
-function montarRodada() {
-  return embaralhar(PERGUNTAS).slice(0, TOTAL).map((p) => {
+function montarRodada(perguntas) {
+  return embaralhar(perguntas).slice(0, TOTAL).map((p) => {
     const ordem = embaralhar([0, 1, 2, 3]);
     return {
       ...p,
@@ -31,6 +32,12 @@ function montarRodada() {
 }
 
 export default function App() {
+  const [rotaAdmin, setRotaAdmin] = useState(
+    () => window.location.pathname === "/auth/perguntas"
+  );
+  const [perguntas, setPerguntas] = useState([]);
+  const [carregandoPerguntas, setCarregandoPerguntas] = useState(true);
+  const [erroPerguntas, setErroPerguntas] = useState("");
   const [tela, setTela] = useState("inicio");
   const [telaAnterior,setTelaAnterior] = useState('')
   const [rodada, setRodada] = useState([]);
@@ -50,8 +57,38 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [tela]);
 
+  useEffect(() => {
+    function atualizarRota() {
+      setRotaAdmin(window.location.pathname === "/auth/perguntas");
+    }
+    window.addEventListener("popstate", atualizarRota);
+    return () => window.removeEventListener("popstate", atualizarRota);
+  }, []);
+
+  async function carregarPerguntas() {
+    setCarregandoPerguntas(true);
+    setErroPerguntas("");
+    try {
+      setPerguntas(await buscarPerguntas());
+    } catch (error) {
+      setErroPerguntas(error.message);
+    } finally {
+      setCarregandoPerguntas(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarPerguntas();
+  }, []);
+
+  function navegar(caminho) {
+    window.history.pushState({}, "", caminho);
+    setRotaAdmin(caminho === "/auth/perguntas");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function iniciar(dados) {
-    setRodada(montarRodada());
+    setRodada(montarRodada(perguntas));
     setTela("quiz");
     setParticipante(dados)
   }
@@ -63,6 +100,14 @@ export default function App() {
     setTela(telaAnterior)
   }
   function cadastrar(){
+      if(perguntas.length == 0) {
+      navegar('/auth/perguntas')
+      return;
+    }
+    setParticipante({
+      nome:"",
+      turma:""
+    })
     setTela('formulario')
   }
 function finalizar(acertos, pontos) {
@@ -100,15 +145,32 @@ useEffect(() => {
 }, [tela]);
   return (
     <>
-      <FundoVideo escuro={tela !== "inicio"} />
+      <FundoVideo escuro={rotaAdmin || tela !== "inicio"} />
+      {rotaAdmin ? (
+        <TelaGerenciarPerguntas
+          perguntas={perguntas}
+          setPerguntas={setPerguntas}
+          carregando={carregandoPerguntas}
+          erro={erroPerguntas}
+          onRetry={carregarPerguntas}
+          onVoltar={() => navegar("/")}
+        />
+      ) : (
       <main>
         {
-          ranking.length > 3 &&
+          ranking.length >= 3 && tela != "ranking" &&
              <button className="showRanking" onClick={verRanking}>
           Ver Ranking
         </button>
         }
-        {tela === "inicio" && <TelaInicio onComecar={cadastrar} />}
+        {tela === "inicio" && (
+          <TelaInicio
+            onComecar={cadastrar}
+            carregando={carregandoPerguntas}
+            erro={erroPerguntas}
+            onRetry={carregarPerguntas}
+          />
+        )}
         {tela == "formulario" && <TelaFormulario onStart={iniciar} /> }
         {tela === "quiz" && <TelaQuiz rodada={rodada} onFim={finalizar} />}
         {
@@ -117,6 +179,7 @@ useEffect(() => {
           participantes={ranking}
           onBack={voltarTela}
            participanteAtual={{
+            id: ranking.length,
             nome: participante.nome,
             turma:participante.turma
            }}
@@ -131,6 +194,7 @@ useEffect(() => {
           />
         )}
       </main>
+      )}
     </>
   );
 }

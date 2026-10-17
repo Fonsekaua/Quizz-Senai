@@ -40,7 +40,6 @@ export default function TelaRanking({participantes, onBack, participanteAtual })
           <div className="ranking-title-icon">
             <FaTrophy />
           </div>
-
           <h1>
             RANKING
             <span> DOS PARTICIPANTES.</span>
@@ -118,8 +117,7 @@ export default function TelaRanking({participantes, onBack, participanteAtual })
 
               const isCurrentParticipant =
                 participanteAtual &&
-                participanteAtual.nome?.trim().toLowerCase() ===
-                  participante.nome.trim().toLowerCase();
+                participanteAtual.id == participante.id;
 
               return (
                 <article
